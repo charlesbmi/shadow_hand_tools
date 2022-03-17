@@ -14,16 +14,17 @@ from sr_utilities.hand_finder import HandFinder
 def main():
     args = parse_args()
 
+    # Initialize our ROS node
+    rospy.init_node("sr_hand", anonymous=True)
+
     # Find the connected Shadow Hand
     hand_finder = HandFinder()
     hand_parameters = hand_finder.get_hand_parameters()
-    hand_serial = hand_parameters.mapping.keys()[0]
+    hand_serial = next(iter(hand_parameters.mapping))
 
-    # Initialize our ROS node
-    rospy.init_node("sr_hand_commander", anonymous=True)
     # Initialize hand connection
     hand_commander = SrHandCommander(
-        args.group_name,
+        args.robot_name,
         hand_parameters=hand_parameters,
         hand_serial=hand_serial
     )
@@ -37,11 +38,16 @@ def main():
     hand_commander.refresh_named_targets()
     print("Named targets: ", hand_commander.get_named_targets())
 
+    # Change velocity & acceleration scaling
+    hand_commander.set_max_velocity_scaling_factor(args.scaling)
+    hand_commander.set_max_acceleration_scaling_factor(args.scaling)
+
     # Move to specified pose
     # wait=True (default) indicates that function blocks until completed
-    print('Moving to:', args.pose)
-    hand_commander.move_to_named_target(args.pose)
-    print('Movement completed.')
+    for pose in  args.poses:
+        print('Moving to:', pose)
+        hand_commander.move_to_named_target(pose)
+    print('Movements completed.')
 
 
 
@@ -49,15 +55,22 @@ def parse_args():
     parser = argparse.ArgumentParser('Connects to Shadow Hand and specifies pose.')
     parser.add_argument(
         '-p',
-        '--pose',
-        required=True,
-        help='date string, such as 20210201',
+        '--poses',
+        nargs='+',
+        help='Pose to move the hand to.',
     )
     parser.add_argument(
         '-n',
         '--robot-name',
         default='right_hand',
-        help='robot group name',
+        help='robot name',
+    )
+    parser.add_argument(
+        '-s',
+        '--scaling',
+        type=float,
+        default=1,
+        help='velocity and acceleration scaling (0, 1]',
     )
 
     args = parser.parse_args()
